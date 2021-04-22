@@ -5,6 +5,31 @@ A PHP class used for simplifying the work with the Bulgarian payment portal ePay
 > The company is specialized in the making of payment systems, electronic trade and security of the information transmission through Internet. The company makes processing of payments with bank cards and of bank transactions in open webs. The main activity of the company is connected with operating with the payment systems ePay.bg®, ePayVoice® (payment by telephone), B-pay (payment at ATM).
 
 # Usage
+
+## Instlation
+
+With composer:
+1) Install package
+```
+composer require yanosh-k/epay
+```
+2) Require the composer autoloader:
+```
+<?php
+    require_once('vendor/autoload.php'):
+    $epay = new Yanoshk\Epay(array(/*...*/));
+```
+
+Manual:
+1) Download or copy src/Epay.php inside your project
+2) Require the library:
+```
+<?php
+    require_once('your_project/Epay.php'):
+    $epay = new Yanoshk\Epay(array(/*...*/));
+```
+
+
 ## Initializing a transaction
 Transactions are initialized by making a POST request to the ePay portal.
 All the necessary data needed for completing the transaction (invoice ID, total amount of the transaction, etc.) is passed as POST parameters.
@@ -14,12 +39,10 @@ To create the form used for directing the user to the payment portal:
 1. Initialize the Epay class with the merchant information you received after completing your merchant profile registration:
 
 ```
-require_once('Epay.php');
-
-$epay = new Epay(array(
+$epay = new Yanoshk\Epay(array(
     // the submit url for the form that will be generated. If not passed this defaults to the demo portal url.
     // After going live, you can change the default inside the class
-    'submitURL'                 => 'https://devep2.datamax.bg/ep2/epay2_demo/'
+    'submitURL'                 => 'https://demo.epay.bg/'
     // the client number (CIN) as seen in the merchant profile
     , 'clientNumber'              => 'D468695585'
     // the client secret used to create the HMAC
@@ -66,19 +89,19 @@ $from = $epay->createForm('epay-form');
 The captured output from this function  should look like this:
 
 ```
-<form id="epay-payment-form" method="POST" action="https://devep2.datamax.bg/ep2/epay2_demo/"><input type="hidden" value="D468695585" name="MIN">
-<input type="hidden" value="paylogin" name="PAGE">
-<input type="hidden" value="1031" name="INVOICE">
-<input type="hidden" value="15" name="AMOUNT">
-<input type="hidden" value="29.08.2015 20:56:03" name="EXP_TIME">
-<input type="hidden" value="Online ticket/s for live streaming" name="DESCR">
-<input type="hidden" value="BGN" name="CURRENCY">
-<input type="hidden" value="bg" name="LANG">
-<input type="hidden" value="utf-8" name="ENCODING">
-<input type="hidden" value="http://example.com/successfull-payment" name="URL_OK">
-<input type="hidden" value="http://example.com/canceled-payment" name="URL_CANCEL">
-<input type="hidden" value="ASDFewfdsfh56134RQAWESFasdgfjFUOHmbvnBSQaSDFASF23434545DSFGGADSAfasdvzxcgdsfg" name="ENCODED">
-<input type="hidden" value="afdsf345tsfggjdyfu36443rasd" name="CHECKSUM">
+<form id="epay-payment-form" method="POST" action="https://demo.epay.bg/"><input type="hidden" value="D468695585" name="MIN">
+    <input type="hidden" name="PAGE" value="paylogin">
+    <input type="hidden" name="INVOICE" value="1031">
+    <input type="hidden" name="AMOUNT" value="15">
+    <input type="hidden" name="EXP_TIME" value="29.08.2015 20:56:03">
+    <input type="hidden" name="DESCR" value="Online ticket/s for live streaming">
+    <input type="hidden" name="CURRENCY" value="BGN">
+    <input type="hidden" name="LANG" value="bg">
+    <input type="hidden" name="ENCODING" value="utf-8">
+    <input type="hidden" name="URL_OK" value="http://example.com/successfull-payment">
+    <input type="hidden" name="URL_CANCEL" value="http://example.com/canceled-payment">
+    <input type="hidden" name="ENCODED" value="ASDFewfdsfh56134RQAWESFasdgfjFUOHmbvnBSQaSDFASF23434545DSFGGADSAfasdvzxcgdsfg">
+    <input type="hidden" name="CHECKSUM" value="afdsf345tsfggjdyfu36443rasd">
 </form>
 ```
 
@@ -104,18 +127,17 @@ The scheme that ePay currently uses to send notification is as follows:
 1. Parse the notification
 
 ```
-require_once('Epay.php');
-
 // Only the client secret is needed for this operation
-$epay = new Epay(array('clientSecret' => 'DSY6AJN6XOT7VEMV2H77LXVMC2D4B9X4JSDSCNEQ7WPYYJZ5JF1FR5JZS6P23M99'));
+$epay = new Yanoshk\Epay(array('clientSecret' => 'DSY6AJN6XOT7VEMV2H77LXVMC2D4B9X4JSDSCNEQ7WPYYJZ5JF1FR5JZS6P23M99'));
 
 
 // Will return an empty array if the passed that was incorrect
 $data            = $epay->getNotificationData($_POST);
 
 
-// The first item is contains the transaction status
-$transactionInfo = isset($data[0]) ? $data[0] : array();
+// Contained data (show for example only)
+// This is the first of many (most times will be just one) transaction items
+$transactionInfoFirst = isset($data[0]) ? $data[0] : array();
 ```
 
 The `$transactionInfo` variable should contain information in the following format:
@@ -135,14 +157,21 @@ array(
 2. Generate an appropriate response
 
 ```
-$response = Epay::generateNotificationResponse(array(
-    'error'     => empty($transactionInfo) ? 'Not valid CHECKSUM' : null
-    , 'status'    => $someCondition ? 'OK' : 'ERR'
-    , 'invoiceID' => $transactionInfo['INVOICE']
-));
+// One ore more transaction items might be present
+$response = [];
+foreach ($data as $transactionInfo) {
+    $response[]   = Yanoshk\Epay::generateNotificationResponse([
+            'error'     => empty($transactionInfo) ? 'Not valid CHECKSUM' : null,
+            'status'    => $existsOrder ? 'OK' : 'ERR',
+            'invoiceID' => $transactionInfo['INVOICE']
+    ]);
+}
+
+echo implode('', $response);
 ```
 
 An example response might look like this:
 ```
 INVOICE=1027:STATUS=OK
+INVOICE=5029:STATUS=OK
 ```
